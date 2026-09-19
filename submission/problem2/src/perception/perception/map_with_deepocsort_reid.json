@@ -1,0 +1,192 @@
+{
+  "1": {
+    "id": 1,
+    "label": "bench",
+    "position": {
+      "x": -9.15,
+      "y": -1.77,
+      "z": 0.92
+    },
+    "confidence": 0.4478
+  },
+  "4": {
+    "id": 4,
+    "label": "bench",
+    "position": {
+      "x": -4.06,
+      "y": -0.19,
+      "z": 0.45
+    },
+    "confidence": 0.5477
+  },
+  "11": {
+    "id": 11,
+    "label": "chair",
+    "position": {
+      "x": -4.6,
+      "y": -1.21,
+      "z": 0.69
+    },
+    "confidence": 0.325
+  },
+  "24": {
+    "id": 24,
+    "label": "bench",
+    "position": {
+      "x": -5.16,
+      "y": -7.94,
+      "z": 0.42
+    },
+    "confidence": 0.4266
+  },
+  "26": {
+    "id": 26,
+    "label": "bench",
+    "position": {
+      "x": -9.19,
+      "y": -2.16,
+      "z": 1.05
+    },
+    "confidence": 0.6248
+  },
+  "32": {
+    "id": 32,
+    "label": "traffic light",
+    "position": {
+      "x": -2.1,
+      "y": 1.75,
+      "z": 0.43
+    },
+    "confidence": 0.3951
+  },
+  "34": {
+    "id": 34,
+    "label": "bench",
+    "position": {
+      "x": -9.52,
+      "y": -3.04,
+      "z": 1.26
+    },
+    "confidence": 0.3273
+  },
+  "36": {
+    "id": 36,
+    "label": "chair",
+    "position": {
+      "x": -4.3,
+      "y": -1.27,
+      "z": 0.65
+    },
+    "confidence": 0.3066
+  },
+  "37": {
+    "id": 37,
+    "label": "chair",
+    "position": {
+      "x": -5.19,
+      "y": -8.79,
+      "z": 0.44
+    },
+    "confidence": 0.3211
+  },
+  "50": {
+    "id": 50,
+    "label": "bench",
+    "position": {
+      "x": -9.15,
+      "y": -5.11,
+      "z": 1.06
+    },
+    "confidence": 0.3396
+  },
+  "55": {
+    "id": 55,
+    "label": "traffic light",
+    "position": {
+      "x": -5.29,
+      "y": -8.82,
+      "z": 0.43
+    },
+    "confidence": 0.473
+  },
+  "57": {
+    "id": 57,
+    "label": "airplane",
+    "position": {
+      "x": -8.88,
+      "y": -5.77,
+      "z": 1.05
+    },
+    "confidence": 0.3159
+  },
+  "59": {
+    "id": 59,
+    "label": "bottle",
+    "position": {
+      "x": -8.15,
+      "y": -8.62,
+      "z": 0.6
+    },
+    "confidence": 0.336
+  },
+  "60": {
+    "id": 60,
+    "label": "traffic light",
+    "position": {
+      "x": -5.35,
+      "y": -8.19,
+      "z": 0.42
+    },
+    "confidence": 0.4529
+  },
+  "64": {
+    "id": 64,
+    "label": "bench",
+    "position": {
+      "x": -9.67,
+      "y": -0.43,
+      "z": 1.53
+    },
+    "confidence": 0.303
+  },
+  "72": {
+    "id": 72,
+    "label": "traffic light",
+    "position": {
+      "x": -2.41,
+      "y": 2.12,
+      "z": 0.73
+    },
+    "confidence": 0.3762
+  },
+  "82": {
+    "id": 82,
+    "label": "traffic light",
+    "position": {
+      "x": -4.8,
+      "y": -8.55,
+      "z": 0.42
+    },
+    "confidence": 0.7476
+  },
+  "85": {
+    "id": 85,
+    "label": "traffic light",
+    "position": {
+      "x": -4.33,
+      "y": -8.21,
+      "z": 0.36
+    },
+    "confidence": 0.4934
+  },
+  "86": {
+    "id": 86,
+    "label": "traffic light",
+    "position": {
+      "x": -4.35,
+      "y": -8.6,
+      "z": 0.33
+    },
+    "confidence": 0.5265
+  }
+}
