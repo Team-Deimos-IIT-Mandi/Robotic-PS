@@ -22,6 +22,7 @@ namespace ackermann_sim {
 
 class GameWorld {
 public:
+    double getTimeStep() const { return m_dt; }
     explicit GameWorld(uint16_t tcp_port = 8091, ScenarioType scenario = ScenarioType::PARALLEL_PARKING_STREET);
     ~GameWorld();
 
@@ -36,6 +37,8 @@ public:
 private:
     void setupTcpServer();
     void handleTcpClient();
+    void flushTcpOutput();
+    void disconnectTcpClient();
     bool checkGoalReached() const;
     bool renderGameWindow();
     uint64_t getCurrentTimeMs() const;
@@ -43,6 +46,7 @@ private:
     /* Window & GUI Settings */
     const int M_WINDOW_SIZE = 800;
     const std::string M_WIN_NAME = "INTER IIT TECH MEET: Autonomous Kinodynamic Simulator";
+    cv::Mat m_staticBackground;
     const uint64_t M_GAME_START_TIME_MS;
 
     /* Simulation World & State */
@@ -59,6 +63,8 @@ private:
     /* TCP Socket Server */
     int m_tcpServerSocketFd = -1;
     int m_tcpClientSocketFd = -1;
+    std::string m_tcpInput;
+    std::string m_tcpOutput;
 
     /* Control Commands & Status */
     ControlCmd m_current_cmd;

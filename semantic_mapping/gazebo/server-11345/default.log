@@ -1,0 +1,25 @@
+Gazebo multi-robot simulator, version 11.10.2
+Copyright (C) 2012 Open Source Robotics Foundation.
+Released under the Apache 2 License.
+http://gazebosim.org
+
+
+(1769424331 801566050) [Wrn] [gazebo_ros_init.cpp:178] 
+#     # ####### ####### ###  #####  #######
+##    # #     #    #     #  #     # #
+# #   # #     #    #     #  #       #
+#  #  # #     #    #     #  #       #####
+#   # # #     #    #     #  #       #
+#    ## #     #    #     #  #     # #
+#     # #######    #    ###  #####  #######
+
+This version of Gazebo, now called Gazebo classic, reaches end-of-life
+in January 2025. Users are highly encouraged to migrate to the new Gazebo
+using our migration guides (https://gazebosim.org/docs/latest/gazebo_classic_migration?utm_source=gazebo_ros_pkgs&utm_medium=cli)
+
+
+(1769424331 834072433) [Msg] Waiting for master.
+(1769424331 841073768) [Msg] Connected to gazebo master @ http://127.0.0.1:11345
+(1769424331 841101206) [Msg] Publicized address: 172.20.10.3
+(1769424331 947349221) [Err] [RTShaderSystem.cc:480] Unable to find shader lib. Shader generating will fail. Your GAZEBO_RESOURCE_PATH is probably improperly set. Have you sourced <prefix>/share/gazebo/setup.bash?
+(1769424331 975933667) [Wrn] [ModelDatabase.cc:340] Getting models from[http://models.gazebosim.org/]. This may take a few seconds.

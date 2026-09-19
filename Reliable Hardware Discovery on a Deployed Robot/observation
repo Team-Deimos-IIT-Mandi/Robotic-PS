@@ -1,0 +1,43 @@
+[29739.740570] usb 1-9: New USB device found, idVendor=1a86, idProduct=7523, bcdDevice= 2.64
+[29739.740585] usb 1-9: New USB device strings: Mfr=0, Product=2, SerialNumber=0
+[29739.740591] usb 1-9: Product: USB Serial
+[29739.742394] ch341 1-9:1.0: ch341-uart converter detected
+[29739.742816] usb 1-9: ch341-uart converter now attached to ttyUSB0
+[29740.275560] input: BRLTTY 6.4 Linux Screen Driver Keyboard as /devices/virtual/input/input29
+
+
+
+deepak@deepak-LOQ-15IRX9:~$ sudo udevadm monitor
+monitor will print the received events for:
+UDEV - the event which udev sends out after rule processing
+KERNEL - the kernel uevent
+
+KERNEL[29798.511754] add      /devices/pci0000:00/0000:00:14.0/usb1/1-9 (usb)
+KERNEL[29798.513012] add      /devices/pci0000:00/0000:00:14.0/usb1/1-9/1-9:1.0 (usb)
+KERNEL[29798.513022] add      /devices/pci0000:00/0000:00:14.0/usb1/1-9/1-9:1.0/ttyUSB0 (usb-serial)
+KERNEL[29798.513378] add      /devices/pci0000:00/0000:00:14.0/usb1/1-9/1-9:1.0/ttyUSB0/tty/ttyUSB0 (tty)
+KERNEL[29798.513389] bind     /devices/pci0000:00/0000:00:14.0/usb1/1-9/1-9:1.0/ttyUSB0 (usb-serial)
+KERNEL[29798.513399] bind     /devices/pci0000:00/0000:00:14.0/usb1/1-9/1-9:1.0 (usb)
+KERNEL[29798.513409] bind     /devices/pci0000:00/0000:00:14.0/usb1/1-9 (usb)
+UDEV  [29798.520118] add      /devices/pci0000:00/0000:00:14.0/usb1/1-9 (usb)
+UDEV  [29798.521926] add      /devices/pci0000:00/0000:00:14.0/usb1/1-9/1-9:1.0 (usb)
+UDEV  [29798.522760] add      /devices/pci0000:00/0000:00:14.0/usb1/1-9/1-9:1.0/ttyUSB0 (usb-serial)
+UDEV  [29798.545010] add      /devices/pci0000:00/0000:00:14.0/usb1/1-9/1-9:1.0/ttyUSB0/tty/ttyUSB0 (tty)
+UDEV  [29798.545957] bind     /devices/pci0000:00/0000:00:14.0/usb1/1-9/1-9:1.0/ttyUSB0 (usb-serial)
+UDEV  [29798.547131] bind     /devices/pci0000:00/0000:00:14.0/usb1/1-9/1-9:1.0 (usb)
+UDEV  [29798.553307] bind     /devices/pci0000:00/0000:00:14.0/usb1/1-9 (usb)
+KERNEL[29799.049321] add      /devices/virtual/input/input31 (input)
+KERNEL[29799.049340] add      /devices/virtual/input/input31/event23 (input)
+UDEV  [29799.050398] add      /devices/virtual/input/input31 (input)
+UDEV  [29799.064569] add      /devices/virtual/input/input31/event23 (input)
+KERNEL[29799.146607] remove   /devices/pci0000:00/0000:00:14.0/usb1/1-9/1-9:1.0/ttyUSB0/tty/ttyUSB0 (tty)
+KERNEL[29799.146626] unbind   /devices/pci0000:00/0000:00:14.0/usb1/1-9/1-9:1.0/ttyUSB0 (usb-serial)
+KERNEL[29799.146630] remove   /devices/pci0000:00/0000:00:14.0/usb1/1-9/1-9:1.0/ttyUSB0 (usb-serial)
+KERNEL[29799.146637] unbind   /devices/pci0000:00/0000:00:14.0/usb1/1-9/1-9:1.0 (usb)
+UDEV  [29799.148797] remove   /devices/pci0000:00/0000:00:14.0/usb1/1-9/1-9:1.0/ttyUSB0/tty/ttyUSB0 (tty)
+UDEV  [29799.149533] unbind   /devices/pci0000:00/0000:00:14.0/usb1/1-9/1-9:1.0/ttyUSB0 (usb-serial)
+UDEV  [29799.149790] remove   /devices/pci0000:00/0000:00:14.0/usb1/1-9/1-9:1.0/ttyUSB0 (usb-serial)
+UDEV  [29799.150979] unbind   /devices/pci0000:00/0000:00:14.0/usb1/1-9/1-9:1.0 (usb)
+
+
+

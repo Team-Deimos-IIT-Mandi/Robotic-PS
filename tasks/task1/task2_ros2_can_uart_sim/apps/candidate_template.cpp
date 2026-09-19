@@ -60,20 +60,102 @@ public:
 
         // --------------------------------------------------------------------
         // TODO 1: Initialize SocketCAN (PF_CAN, SOCK_RAW, CAN_RAW) on m_can_if.
-        // - Create socket using socket(PF_CAN, SOCK_RAW, CAN_RAW).
-        // - Set socket flags to NON-BLOCKING mode (O_NONBLOCK).
-        // - Retrieve interface index using ioctl(SIOCGIFINDEX) for m_can_if.
-        // - Bind socket using bind().
         // --------------------------------------------------------------------
+        m_can_fd = socket(PF_CAN, SOCK_RAW, CAN_RAW);
+
+        if (m_can_fd < 0) {
+            std::cerr << "[CAN] Failed to create SocketCAN socket." << std::endl;
+            return false;
+        }
+
+        // Set socket to non-blocking mode
+        int flags = fcntl(m_can_fd, F_GETFL, 0);
+        if (flags < 0 || fcntl(m_can_fd, F_SETFL, flags | O_NONBLOCK) < 0) {
+            std::cerr << "[CAN] Failed to set non-blocking mode." << std::endl;
+            close(m_can_fd);
+            m_can_fd = -1;
+            return false;
+        }
+
+        // Get interface index for vcan0
+        struct ifreq ifr{};
+        std::strncpy(ifr.ifr_name, m_can_if.c_str(), IFNAMSIZ - 1);
+
+        if (ioctl(m_can_fd, SIOCGIFINDEX, &ifr) < 0) {
+            std::cerr << "[CAN] Failed to get interface index for "
+                      << m_can_if << std::endl;
+            close(m_can_fd);
+            m_can_fd = -1;
+            return false;
+        }
+
+        // Bind the socket to the CAN interface
+        struct sockaddr_can addr{};
+        addr.can_family = AF_CAN;
+        addr.can_ifindex = ifr.ifr_ifindex;
+
+        if (bind(m_can_fd,
+                 reinterpret_cast<struct sockaddr*>(&addr),
+                 sizeof(addr)) < 0) {
+            std::cerr << "[CAN] Failed to bind to "
+                      << m_can_if << std::endl;
+            close(m_can_fd);
+            m_can_fd = -1;
+            return false;
+        }
+
+        std::cout << "[CAN] Socket bound to " << m_can_if
+                  << " (non-blocking)." << std::endl;
 
         // --------------------------------------------------------------------
         // TODO 2: Initialize POSIX Serial Port (m_serial_port) with termios.h.
-        // - Open device port using open() in O_RDWR | O_NOCTTY | O_NONBLOCK mode.
-        // - Configure baud rate to B115200 (cfsetospeed / cfsetispeed).
-        // - Set 8N1 raw mode (CS8, no parity PARENB, 1 stop bit CSTOPB).
-        // - Configure non-blocking read settings (VMIN=0, VTIME=0).
-        // - Apply termios settings using tcsetattr(TCSANOW).
         // --------------------------------------------------------------------
+        m_serial_fd = open(m_serial_port.c_str(), O_RDWR | O_NOCTTY | O_NONBLOCK);
+        if (m_serial_fd < 0) {
+            std::cerr << "[UART] Failed to open " << m_serial_port << std::endl;
+            return false;
+        }
+
+        struct termios tty{};
+        if (tcgetattr(m_serial_fd, &tty) != 0) {
+            std::cerr << "[UART] Failed to get termios settings." << std::endl;
+            close(m_serial_fd);
+            m_serial_fd = -1;
+            return false;
+        }
+
+        // Set baud rate to 115200
+        cfsetospeed(&tty, B115200);
+        cfsetispeed(&tty, B115200);
+
+        // 8N1 raw mode, no hardware flow control
+        tty.c_cflag &= ~PARENB;
+        tty.c_cflag &= ~CSTOPB;
+        tty.c_cflag &= ~CSIZE;
+        tty.c_cflag |= CS8;
+        tty.c_cflag &= ~CRTSCTS;
+        tty.c_cflag |= CREAD | CLOCAL;
+
+        // Raw local mode
+        tty.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG);
+
+        // Raw input/output
+        tty.c_iflag &= ~(IXON | IXOFF | IXANY);
+        tty.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL);
+        tty.c_oflag &= ~OPOST;
+
+        // Non-blocking read settings
+        tty.c_cc[VMIN] = 0;
+        tty.c_cc[VTIME] = 0;
+
+        if (tcsetattr(m_serial_fd, TCSANOW, &tty) != 0) {
+            std::cerr << "[UART] Failed to set termios settings." << std::endl;
+            close(m_serial_fd);
+            m_serial_fd = -1;
+            return false;
+        }
+
+        std::cout << "[UART] Serial port opened at 115200 8N1 (non-blocking)." << std::endl;
 
         return (m_can_fd >= 0 && m_serial_fd >= 0);
     }
@@ -88,8 +170,11 @@ public:
      * Calculate: checksum = payload[0] ^ payload[1] ^ ... ^ payload[6]
      */
     uint8_t computeCanChecksum(const uint8_t* payload_7bytes) {
-        // CANDIDATE IMPLEMENTATION HERE
-        return 0;
+        uint8_t checksum = 0;
+        for (int i = 0; i < 7; ++i) {
+            checksum ^= payload_7bytes[i];
+        }
+        return checksum;
     }
 
     /**
@@ -102,8 +187,23 @@ public:
      * - Write non-blocking frame using write(m_can_fd, &frame, sizeof(frame)).
      */
     bool sendMotorVelocity(uint8_t motor_id, float target_velocity) {
-        // CANDIDATE IMPLEMENTATION HERE
-        return false;
+        if (m_can_fd < 0) return false;
+
+        struct can_frame frame;
+        std::memset(&frame, 0, sizeof(frame));
+        
+        frame.can_id = 0x100 + motor_id;
+        frame.can_dlc = 8;
+        
+        frame.data[0] = motor_id;
+        std::memcpy(&frame.data[1], &target_velocity, sizeof(float));
+        frame.data[5] = 0x00;
+        frame.data[6] = 0x00;
+        
+        frame.data[7] = computeCanChecksum(frame.data);
+
+        ssize_t nbytes = write(m_can_fd, &frame, sizeof(struct can_frame));
+        return (nbytes == sizeof(struct can_frame));
     }
 
     /**
@@ -114,8 +214,28 @@ public:
      * - Return true if a valid frame was read, false otherwise.
      */
     bool readEncoderFeedback(MotorState& state) {
-        // CANDIDATE IMPLEMENTATION HERE
-        return false;
+        if (m_can_fd < 0) return false;
+
+        struct can_frame frame;
+        ssize_t nbytes = read(m_can_fd, &frame, sizeof(struct can_frame));
+        
+        if (nbytes != sizeof(struct can_frame)) {
+            return false; // No data available or read error
+        }
+
+        if (frame.can_dlc < 8) {
+            return false; // Incomplete payload
+        }
+
+        uint8_t expected_checksum = computeCanChecksum(frame.data);
+        if (frame.data[7] != expected_checksum) {
+            return false; // Checksum mismatch
+        }
+
+        state.motor_id = frame.data[0];
+        std::memcpy(&state.position, &frame.data[1], sizeof(float));
+
+        return true;
     }
 
     /**
@@ -129,8 +249,117 @@ public:
      * - Return true if a valid sentence was parsed, false otherwise.
      */
     bool readImuTelemetry(ImuData& imu) {
-        // CANDIDATE IMPLEMENTATION HERE
-        return false;
+        if (m_serial_fd < 0) {
+            return false;
+        }
+
+        char chunk[256];
+
+        ssize_t bytes_read =
+            read(m_serial_fd, chunk, sizeof(chunk));
+
+        // No new UART data
+        if (bytes_read <= 0) {
+            return false;
+        }
+
+        // Add newly received bytes to persistent buffer
+        m_rx_buf.append(chunk, bytes_read);
+
+        bool found_valid = false;
+
+        // Process every complete line currently in the buffer
+        size_t newline_pos;
+
+        while ((newline_pos = m_rx_buf.find('\n')) != std::string::npos) {
+
+            std::string line =
+                m_rx_buf.substr(0, newline_pos);
+
+            // Remove the processed line from the buffer
+            m_rx_buf.erase(0, newline_pos + 1);
+
+            // Remove optional '\r'
+            if (!line.empty() && line.back() == '\r') {
+                line.pop_back();
+            }
+
+            // Must start with '$'
+            if (line.empty() || line[0] != '$') {
+                continue;
+            }
+
+            // Find '*'
+            size_t star_pos = line.find('*');
+
+            if (star_pos == std::string::npos) {
+                continue;
+            }
+
+            // Extract message body
+            std::string body =
+                line.substr(1, star_pos - 1);
+
+            // Extract CRC after '*'
+            std::string provided_crc =
+                line.substr(star_pos + 1);
+
+            if (provided_crc.size() != 2) {
+                continue;
+            }
+
+            // Calculate XOR CRC over message body
+            uint8_t crc = 0;
+
+            for (char c : body) {
+                crc ^= static_cast<uint8_t>(c);
+            }
+
+            // Convert calculated CRC to 2-digit uppercase HEX
+            std::ostringstream crc_stream;
+            crc_stream << std::uppercase
+                       << std::setfill('0')
+                       << std::setw(2)
+                       << std::hex
+                       << static_cast<int>(crc);
+
+            std::string expected_crc = crc_stream.str();
+
+            // Reject corrupted message
+            if (provided_crc != expected_crc) {
+                continue;
+            }
+
+            // Split body using commas
+            std::istringstream ss(body);
+            std::string token;
+            std::vector<std::string> tokens;
+
+            while (std::getline(ss, token, ',')) {
+                tokens.push_back(token);
+            }
+
+            // Expected:
+            // ROVER, IMU, accel_x, accel_y, yaw
+            if (tokens.size() < 5 ||
+                tokens[0] != "ROVER" ||
+                tokens[1] != "IMU") {
+                continue;
+            }
+
+            try {
+                imu.accel_x = std::stof(tokens[2]);
+                imu.accel_y = std::stof(tokens[3]);
+                imu.yaw     = std::stof(tokens[4]);
+
+                found_valid = true;
+            }
+            catch (...) {
+                continue;
+            }
+        }
+
+        return found_valid;
     }
 
 private:

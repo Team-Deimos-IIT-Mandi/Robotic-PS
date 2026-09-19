@@ -1,0 +1,9 @@
+.venv/
+.vscode/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+results/logs/
+results/benchmarks/

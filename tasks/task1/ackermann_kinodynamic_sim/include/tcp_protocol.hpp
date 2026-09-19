@@ -91,6 +91,21 @@ struct ConfigResponse {
     }
 };
 
+struct WaypointResponse {
+    std::vector<Point2DGoal> waypoints;
+
+    std::string serialize() const {
+        std::ostringstream ss;
+        ss << std::fixed << std::setprecision(4);
+        ss << "WAYPOINTS " << waypoints.size();
+        for (const auto& waypoint : waypoints) {
+            ss << " " << waypoint.x << " " << waypoint.y;
+        }
+        ss << "\n";
+        return ss.str();
+    }
+};
+
 struct ControlCmd {
     double target_v = 0.0;
     double target_delta = 0.0;

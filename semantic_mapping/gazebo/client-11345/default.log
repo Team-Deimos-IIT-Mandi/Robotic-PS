@@ -1,0 +1,13 @@
+Gazebo multi-robot simulator, version 11.10.2
+Copyright (C) 2012 Open Source Robotics Foundation.
+Released under the Apache 2 License.
+http://gazebosim.org
+
+
+(1769424331 636063531) [Msg] Waiting for master.
+(1769424331 636214202) Failed to create connection to remote host[localhost:11345]
+(1769424332 641070481) [Msg] Connected to gazebo master @ http://127.0.0.1:11345
+(1769424332 641119607) [Msg] Publicized address: 172.20.10.3
+(1769424332 641635957) Loaded .ini file from: "/home/deepak/.gazebo/gui.ini"
+(1769424332 729504173) [Err] [RTShaderSystem.cc:480] Unable to find shader lib. Shader generating will fail. Your GAZEBO_RESOURCE_PATH is probably improperly set. Have you sourced <prefix>/share/gazebo/setup.bash?
+(1769424332 729847569) [Msg] Warning: Ignoring XDG_SESSION_TYPE=wayland on Gnome. Use QT_QPA_PLATFORM=wayland to run on Wayland anyway.

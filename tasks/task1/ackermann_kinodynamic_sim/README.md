@@ -4,6 +4,8 @@ This repository contains a C++ simulator designed to test motion planning and co
 
 The simulator models vehicle dynamics in a $100\text{m} \times 100\text{m}$ grid environment and provides real-time state telemetry and occupancy maps over a TCP socket interface.
 
+**Demo Video:** [https://youtu.be/oAvbw1vUkfA](https://youtu.be/oAvbw1vUkfA)
+
 ---
 
 ## Task Overview
@@ -37,6 +39,7 @@ The simulator runs a TCP server on port `8091`.
 Send string `Q\n` to receive initial pose, goal pose, vehicle parameters, and grid map:
 - Response format:
   - `CONFIG <start_x> <start_y> <start_yaw> <goal_x> <goal_y> <goal_yaw> <len> <width> <wheelbase> <max_steer> <max_speed> <min_speed> <map_w> <map_h> <res> <orig_x> <orig_y> <cols> <rows>`
+  - `WAYPOINTS <count> <x_0> <y_0> ... <x_N> <y_N>` (`count` is zero outside Scenario 3)
   - `GRID <num_cells> <val_0> <val_1> ... <val_N>` (0 = Free, 1 = Obstacle)
 
 ### 2. Stream Controls (`Client -> Server`)
@@ -46,9 +49,30 @@ Send control commands at 20 Hz:
 
 ### 3. Upload Trajectory Visualization (`Client -> Server`)
 - Format: `TRAJ <x1> <y1> <yaw1> <v1>;<x2> <y2> <yaw2> <v2>;...\n`
+- TCP packets are not messages: the server buffers until the newline and then
+  replaces the displayed path with the complete trajectory for the current leg.
 
 ### 4. Telemetry Stream (`Server -> Client`)
 - Format: `TELEMETRY <step_count> <time_ms> <x> <y> <yaw> <v> <delta> <is_colliding> <is_goal_reached>`
+
+### 5. Cancel a fully blocked intermediate waypoint (local extension)
+
+- Request: `SKIP_WAYPOINT <1-based index>\n`.
+- Reply: `WAYPOINT_SKIPPED <index>\n` or `WAYPOINT_SKIP_REJECTED <index>\n`.
+- The car must be stopped, the requested waypoint must be the next unfinished
+  waypoint, and its entire 1.2 m acceptance circle must contain no free map area.
+  The final waypoint cannot be skipped. Both client and server check the map.
+- Scenario 3 waypoint 7 at `(0, 0)` is inside a wall. After reaching waypoint 6,
+  the client requests cancellation of 7, waits for confirmation, then plans to 8.
+  The map and waypoint coordinates are unchanged. A skipped waypoint is drawn
+  gray with a slash and is never reported as physically reached.
+- Success requires all non-cancelled waypoints in order, plus the final position,
+  heading and low-speed checks. Logs include the cancellation count. This is a
+  user-requested local policy, not success under the original all-waypoints rule.
+
+The client plans one complete leg at a time, stops at intermediate targets,
+and sends zero-speed commands while planning the next leg. Rebuild **both**
+executables together: the client now waits for `CONFIG`, `WAYPOINTS`, and `GRID`.
 
 ---
 
@@ -68,13 +92,19 @@ make -j4
 ```
 
 ### Running the Simulator
-Launch the simulator with a chosen port and scenario ID:
+Launch the simulator with a chosen port, scenario ID, and optional time scale
+(default `5`: five simulated seconds per real second):
 ```bash
 ./simulator_node 8091 0   # Scenario 0: Parallel Parking
 ./simulator_node 8091 1   # Scenario 1: Parking Lot Bay
 ./simulator_node 8091 2   # Scenario 2: Slalom Track
-./simulator_node 8091 3   # Scenario 3: Multi-Goal Navigation
+./simulator_node 8091 3 5 # Scenario 3: Multi-Goal Navigation at 5x speed
 ```
+
+Use `./simulator_node 8091 3 1` for normal speed. The physics timestep stays
+0.05 simulated seconds; only wall-clock pacing changes. At 5x the client must
+keep up with approximately 100 telemetry/control updates per real second.
+Requested speed is subject to the machine's rendering and processing capacity.
 
 ### Running the Client Template
 In a separate terminal, run your client code:

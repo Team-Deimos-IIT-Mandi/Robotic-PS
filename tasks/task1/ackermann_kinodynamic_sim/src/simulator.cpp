@@ -2,6 +2,7 @@
 #include <iostream>
 #include <sstream>
 #include <cmath>
+#include <cerrno>
 
 namespace ackermann_sim {
 
@@ -60,10 +61,31 @@ void GameWorld::setupTcpServer() {
     std::cout << "[TCP Server] Listening on port " << m_tcpPort << std::endl;
 }
 
+void GameWorld::disconnectTcpClient() {
+    if (m_tcpClientSocketFd != -1) close(m_tcpClientSocketFd);
+    m_tcpClientSocketFd = -1;
+    m_tcpInput.clear();
+    m_tcpOutput.clear();
+    m_current_cmd = ControlCmd{};
+}
+
+void GameWorld::flushTcpOutput() {
+    size_t sent = 0;
+    while (sent < m_tcpOutput.size()) {
+        ssize_t n = send(m_tcpClientSocketFd, m_tcpOutput.data() + sent,
+                         m_tcpOutput.size() - sent, MSG_NOSIGNAL);
+        if (n > 0) sent += static_cast<size_t>(n);
+        else if (n < 0 && errno == EINTR) continue;
+        else if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) break;
+        else { disconnectTcpClient(); return; }
+    }
+    m_tcpOutput.erase(0, sent);
+}
+
 void GameWorld::handleTcpClient() {
     if (m_tcpClientSocketFd == -1) {
         m_tcpClientSocketFd = accept(m_tcpServerSocketFd, nullptr, nullptr);
-        if (m_tcpClientSocketFd > 0) {
+        if (m_tcpClientSocketFd >= 0) {
             std::cout << "[TCP Server] Client connected!" << std::endl;
             int flags = fcntl(m_tcpClientSocketFd, F_GETFL, 0);
             fcntl(m_tcpClientSocketFd, F_SETFL, flags | O_NONBLOCK);
@@ -71,16 +93,22 @@ void GameWorld::handleTcpClient() {
         return;
     }
 
-    char buffer[4096];
-    ssize_t bytes_read = read(m_tcpClientSocketFd, buffer, sizeof(buffer) - 1);
-
-    if (bytes_read > 0) {
-        buffer[bytes_read] = '\0';
-        std::string msg(buffer);
-        std::istringstream stream(msg);
-        std::string line;
-
-        while (std::getline(stream, line)) {
+    char buffer[16384];
+    for (int reads = 0; reads < 16; ++reads) {
+        ssize_t n = read(m_tcpClientSocketFd, buffer, sizeof(buffer));
+        if (n > 0) m_tcpInput.append(buffer, static_cast<size_t>(n));
+        else if (n < 0 && errno == EINTR) continue;
+        else if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) break;
+        else {
+            std::cout << "[TCP Server] Client disconnected." << std::endl;
+            disconnectTcpClient();
+            return;
+        }
+    }
+    size_t end;
+    while ((end = m_tcpInput.find('\n')) != std::string::npos) {
+            std::string line = m_tcpInput.substr(0, end);
+            m_tcpInput.erase(0, end + 1);
             if (line.empty()) continue;
 
             if (line[0] == 'Q' || line.rfind("GET_CONFIG", 0) == 0) {
@@ -97,7 +125,12 @@ void GameWorld::handleTcpClient() {
                 cfg.rows = m_grid.getRows();
 
                 std::string resp = cfg.serialize();
-                write(m_tcpClientSocketFd, resp.c_str(), resp.length());
+                m_tcpOutput += resp;
+
+                WaypointResponse waypoint_response;
+                waypoint_response.waypoints = m_scenario_info.waypoints;
+                std::string waypoint_str = waypoint_response.serialize();
+                m_tcpOutput += waypoint_str;
 
                 const auto& grid_data = m_grid.getGridData();
                 std::ostringstream ss_grid;
@@ -107,8 +140,31 @@ void GameWorld::handleTcpClient() {
                 }
                 ss_grid << "\n";
                 std::string grid_str = ss_grid.str();
-                write(m_tcpClientSocketFd, grid_str.c_str(), grid_str.length());
-                std::cout << "[TCP Server] Sent scenario configuration & occupancy grid." << std::endl;
+                m_tcpOutput += grid_str;
+                std::cout << "[TCP Server] Queued configuration, waypoints & occupancy grid." << std::endl;
+            }
+            else if (line.rfind("SKIP_WAYPOINT ", 0) == 0) {
+                std::istringstream request(line.substr(14));
+                size_t requested = 0;
+                std::string extra;
+                auto& waypoints = m_scenario_info.waypoints;
+                size_t active = 0;
+                while (active < waypoints.size() &&
+                       (waypoints[active].visited || waypoints[active].cancelled)) ++active;
+                bool valid = (request >> requested) && !(request >> extra) &&
+                             active + 1 < waypoints.size() && requested == active + 1 &&
+                             std::abs(m_state.v) < 0.01;
+                if (valid && m_grid.isGoalRegionOccupied(waypoints[active].x,
+                                                        waypoints[active].y, 1.2)) {
+                    waypoints[active].cancelled = true;
+                    m_current_cmd = ControlCmd{};
+                    std::cout << "[Simulator] Waypoint #" << requested
+                              << " SKIPPED: entire acceptance area is inside obstacles."
+                              << std::endl;
+                    m_tcpOutput += "WAYPOINT_SKIPPED " + std::to_string(requested) + "\n";
+                } else {
+                    m_tcpOutput += "WAYPOINT_SKIP_REJECTED " + std::to_string(requested) + "\n";
+                }
             }
             else if (line.rfind("CTRL", 0) == 0) {
                 ControlCmd cmd;
@@ -120,33 +176,33 @@ void GameWorld::handleTcpClient() {
             else if (line.rfind("TRAJ", 0) == 0) {
                 std::istringstream ss_traj(line.substr(5));
                 std::string pt_str;
-                m_planned_path.clear();
+                std::vector<VehicleState> received_path;
+                bool valid = true;
                 while (std::getline(ss_traj, pt_str, ';')) {
                     if (pt_str.empty()) continue;
                     std::istringstream ss_pt(pt_str);
                     VehicleState st;
                     if (ss_pt >> st.x >> st.y >> st.yaw >> st.v) {
-                        m_planned_path.push_back(st);
-                    }
+                        received_path.push_back(st);
+                    } else { valid = false; break; }
                 }
+                if (!valid) {
+                    std::cerr << "[TCP Server] Ignored malformed TRAJ." << std::endl;
+                    continue;
+                }
+                m_planned_path = std::move(received_path);
                 std::cout << "[TCP Server] Received trajectory with " 
                           << m_planned_path.size() << " waypoints." << std::endl;
             }
-        }
     }
-    else if (bytes_read == 0) {
-        std::cout << "[TCP Server] Client disconnected." << std::endl;
-        close(m_tcpClientSocketFd);
-        m_tcpClientSocketFd = -1;
-    }
+    flushTcpOutput();
 }
 
 bool GameWorld::checkGoalReached() const {
     if (!m_scenario_info.waypoints.empty()) {
         for (const auto& wp : m_scenario_info.waypoints) {
-            if (!wp.visited) return false;
+            if (!wp.visited && !wp.cancelled) return false;
         }
-        return true;
     }
 
     const auto& goal = m_scenario_info.goal_pose;
@@ -180,14 +236,15 @@ bool GameWorld::spinOnce() {
         // Waypoint check
         for (size_t i = 0; i < m_scenario_info.waypoints.size(); ++i) {
             auto& wp = m_scenario_info.waypoints[i];
-            if (!wp.visited) {
-                double dist = std::hypot(m_state.x - wp.x, m_state.y - wp.y);
-                if (dist < 1.2) {
-                    wp.visited = true;
-                    std::cout << "[Simulator] Waypoint #" << (i+1) << " reached at (" 
-                              << wp.x << ", " << wp.y << ")" << std::endl;
-                }
+            if (wp.visited || wp.cancelled) continue;
+
+            double dist = std::hypot(m_state.x - wp.x, m_state.y - wp.y);
+            if (dist < 1.2) {
+                wp.visited = true;
+                std::cout << "[Simulator] Waypoint #" << (i+1) << " reached at ("
+                          << wp.x << ", " << wp.y << ")" << std::endl;
             }
+            break;
         }
 
         auto corners = m_vehicle_model.getBoundingBoxCorners(m_state);
@@ -198,8 +255,10 @@ bool GameWorld::spinOnce() {
 
         m_goal_reached = checkGoalReached();
         if (m_goal_reached) {
+            size_t cancelled = 0;
+            for (const auto& wp : m_scenario_info.waypoints) if (wp.cancelled) ++cancelled;
             std::cout << "[Simulator] Goal reached in " << m_step_count << " steps (" 
-                      << m_step_count * m_dt << "s)!" << std::endl;
+                      << m_step_count * m_dt << "s), cancelled waypoints=" << cancelled << "." << std::endl;
         }
     }
 
@@ -212,7 +271,8 @@ bool GameWorld::spinOnce() {
         telem.is_goal_reached = m_goal_reached;
 
         std::string msg = telem.serialize();
-        write(m_tcpClientSocketFd, msg.c_str(), msg.length());
+        m_tcpOutput += msg;
+        flushTcpOutput();
     }
 
     return renderGameWindow();
@@ -232,38 +292,46 @@ bool GameWorld::renderGameWindow() {
         return cv::Point(cx, cy);
     };
 
-    // 1. Grid lines
-    int grid_step = static_cast<int>(5.0 / map_w * M_WINDOW_SIZE); // 5m grid lines
-    for (int x = 0; x < M_WINDOW_SIZE; x += grid_step) {
-        cv::line(canvas, cv::Point(x, 0), cv::Point(x, M_WINDOW_SIZE), cv::Scalar(45, 48, 56), 1);
-    }
-    for (int y = 0; y < M_WINDOW_SIZE; y += grid_step) {
-        cv::line(canvas, cv::Point(0, y), cv::Point(M_WINDOW_SIZE, y), cv::Scalar(45, 48, 56), 1);
-    }
+    if (m_staticBackground.empty()) {
+        // 1. Grid lines
+        int grid_step = static_cast<int>(5.0 / map_w * M_WINDOW_SIZE); // 5m grid lines
+        for (int x = 0; x < M_WINDOW_SIZE; x += grid_step) {
+            cv::line(canvas, cv::Point(x, 0), cv::Point(x, M_WINDOW_SIZE), cv::Scalar(45, 48, 56), 1);
+        }
+        for (int y = 0; y < M_WINDOW_SIZE; y += grid_step) {
+            cv::line(canvas, cv::Point(0, y), cv::Point(M_WINDOW_SIZE, y), cv::Scalar(45, 48, 56), 1);
+        }
 
-    // 2. Obstacles
-    int cols = m_grid.getCols();
-    int rows = m_grid.getRows();
-    double res = m_grid.getResolution();
+        // 2. Obstacles
+        int cols = m_grid.getCols();
+        int rows = m_grid.getRows();
+        double res = m_grid.getResolution();
 
-    for (int r = 0; r < rows; ++r) {
-        for (int c = 0; c < cols; ++c) {
-            if (m_grid.isCellOccupied(c, r)) {
-                double wx, wy;
-                m_grid.gridToWorld(c, r, wx, wy);
-                cv::Point p1 = worldToCanvas(wx - res/2, wy + res/2);
-                cv::Point p2 = worldToCanvas(wx + res/2, wy - res/2);
-                cv::rectangle(canvas, p1, p2, cv::Scalar(100, 100, 120), cv::FILLED);
+        for (int r = 0; r < rows; ++r) {
+            for (int c = 0; c < cols; ++c) {
+                if (m_grid.isCellOccupied(c, r)) {
+                    double wx, wy;
+                    m_grid.gridToWorld(c, r, wx, wy);
+                    cv::Point p1 = worldToCanvas(wx - res/2, wy + res/2);
+                    cv::Point p2 = worldToCanvas(wx + res/2, wy - res/2);
+                    cv::rectangle(canvas, p1, p2, cv::Scalar(100, 100, 120), cv::FILLED);
+                }
             }
         }
+
+        m_staticBackground = canvas.clone();
+    } else {
+        canvas = m_staticBackground.clone();
     }
 
     // 3. Sequential Waypoints (if scenario 3)
     for (size_t i = 0; i < m_scenario_info.waypoints.size(); ++i) {
         const auto& wp = m_scenario_info.waypoints[i];
         cv::Point pt = worldToCanvas(wp.x, wp.y);
-        cv::Scalar col = wp.visited ? cv::Scalar(50, 220, 50) : cv::Scalar(220, 50, 220);
+        cv::Scalar col = wp.cancelled ? cv::Scalar(150, 150, 150) :
+                         wp.visited ? cv::Scalar(50, 220, 50) : cv::Scalar(220, 50, 220);
         cv::circle(canvas, pt, 10, col, wp.visited ? cv::FILLED : 2, cv::LINE_AA);
+        if (wp.cancelled) cv::line(canvas, pt-cv::Point(10,10), pt+cv::Point(10,10), col, 2);
         cv::putText(canvas, std::to_string(i+1), cv::Point(pt.x - 4, pt.y + 4), 
                     cv::FONT_HERSHEY_SIMPLEX, 0.45, cv::Scalar(255, 255, 255), 1);
     }
@@ -371,7 +439,7 @@ bool GameWorld::renderGameWindow() {
 
     cv::imshow(M_WIN_NAME, canvas);
 
-    int key = cv::waitKey(static_cast<int>(m_dt * 1000.0));
+    int key = cv::waitKey(1);
     if (key == 27 || key == 'q' || key == 'Q') {
         return false;
     }

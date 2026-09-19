@@ -1,0 +1,12 @@
+{
+  "package_name": "turtlebot3_msgs",
+  "non_idl_tuples": [
+    "/home/deepak/InterIIT_practice/task_2/turtlebot3_ws/src/turtlebot3_msgs:msg/SensorState.msg",
+    "/home/deepak/InterIIT_practice/task_2/turtlebot3_ws/src/turtlebot3_msgs:msg/Sound.msg",
+    "/home/deepak/InterIIT_practice/task_2/turtlebot3_ws/src/turtlebot3_msgs:msg/VersionInfo.msg",
+    "/home/deepak/InterIIT_practice/task_2/turtlebot3_ws/src/turtlebot3_msgs:srv/Sound.srv",
+    "/home/deepak/InterIIT_practice/task_2/turtlebot3_ws/src/turtlebot3_msgs:srv/Dqn.srv",
+    "/home/deepak/InterIIT_practice/task_2/turtlebot3_ws/src/turtlebot3_msgs:srv/Goal.srv",
+    "/home/deepak/InterIIT_practice/task_2/turtlebot3_ws/src/turtlebot3_msgs:action/Patrol.action"
+  ]
+}

@@ -1,0 +1,3 @@
+/home/deepak/InterIIT_practice/task_2/turtlebot3_ws/install/dynamixel_sdk/lib/libdynamixel_sdk.so
+/home/deepak/InterIIT_practice/task_2/turtlebot3_ws/install/dynamixel_sdk/share/dynamixel_sdk/cmake/dynamixel_sdkExport.cmake
+/home/deepak/InterIIT_practice/task_2/turtlebot3_ws/install/dynamixel_sdk/share/dynamixel_sdk/cmake/dynamixel_sdkExport-noconfig.cmake

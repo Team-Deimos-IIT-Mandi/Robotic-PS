@@ -39,6 +39,21 @@ bool OccupancyGrid::isCellOccupied(int gx, int gy) const {
     return m_grid[gy * m_cols + gx] > 127;
 }
 
+bool OccupancyGrid::isGoalRegionOccupied(double x, double y, double radius) const {
+    int cx, cy;
+    worldToGrid(x, y, cx, cy);
+    int extent = static_cast<int>(std::ceil(radius / m_resolution)) + 1;
+    for (int gy = cy-extent; gy <= cy+extent; ++gy) {
+        for (int gx = cx-extent; gx <= cx+extent; ++gx) {
+            if (isCellOccupied(gx, gy)) continue;
+            double px = std::clamp(x, m_origin_x+gx*m_resolution, m_origin_x+(gx+1)*m_resolution);
+            double py = std::clamp(y, m_origin_y+gy*m_resolution, m_origin_y+(gy+1)*m_resolution);
+            if (std::hypot(px-x, py-y) < radius) return false;
+        }
+    }
+    return true;
+}
+
 void OccupancyGrid::setOccupied(double wx, double wy, bool occupied) {
     int gx, gy;
     if (worldToGrid(wx, wy, gx, gy)) {

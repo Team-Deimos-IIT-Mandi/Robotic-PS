@@ -20,6 +20,7 @@ struct Point2DGoal {
     double x;
     double y;
     bool visited = false;
+    bool cancelled = false;
 };
 
 struct ScenarioInfo {
@@ -47,6 +48,7 @@ public:
 
     bool isOccupied(double wx, double wy) const;
     bool isCellOccupied(int gx, int gy) const;
+    bool isGoalRegionOccupied(double x, double y, double radius) const;
     void setOccupied(double wx, double wy, bool occupied = true);
     void setCellOccupied(int gx, int gy, bool occupied = true);
 
