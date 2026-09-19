@@ -1,0 +1,37 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# ROS 2 build artifacts (do not commit build/install/log from turtlebot3_ws)
+build/
+install/
+log/
+.colcon_install_layout
+
+# YOLO model weights (large binary - instruct users to download)
+*.pt
+*.onnx
+*.engine
+
+# Semantic map outputs (generated at runtime)
+semantic_map.json
+semantic_map.yaml
+
+# Python virtualenvs
+.venv/
+venv/
+
+# IDE settings
+.vscode/
+.idea/
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+
+# Video recordings (too large for git)
+*.mp4
+*.webm
+*.avi
