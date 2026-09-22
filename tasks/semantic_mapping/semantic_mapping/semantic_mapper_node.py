@@ -109,9 +109,9 @@ class SemanticMapperNode(Node):
         self.declare_parameter('odom_topic', '/odom')
         self.declare_parameter('world_frame', 'odom')
         self.declare_parameter('camera_frame', 'camera_rgb_frame')
-        self.declare_parameter('confidence_threshold', 0.30)
+        self.declare_parameter('confidence_threshold', 0.45)
         self.declare_parameter('distance_threshold', 1.0)
-        self.declare_parameter('persistence_threshold', 3)
+        self.declare_parameter('persistence_threshold', 2)
         self.declare_parameter('yolo_model', 'yolov8n-seg.pt')
         self.declare_parameter('map_output_path', 'semantic_map.json')
         self.declare_parameter('publish_markers', True)
@@ -160,8 +160,13 @@ class SemanticMapperNode(Node):
         # Target indoor classes (COCO classes common in indoor/house environments)
         self.target_classes = {
             'chair', 'couch', 'bed', 'dining table', 'tv', 'toilet', 'refrigerator',
-            'sink', 'microwave', 'oven', 'toaster', 'book', 'clock', 'vase',
-            'potted plant', 'bottle', 'cup', 'bowl', 'bench', 'backpack', 'suitcase'
+            'sink', 'microwave', 'oven', 'potted plant', 'bench'
+        }
+
+        # Class remapping to normalize labels (e.g. Gazebo table detected as bench)
+        self.class_remap = {
+            'bench': 'dining table',
+            'couch': 'sofa',
         }
 
         # Spatial gating distance thresholds per class (meters)
@@ -328,10 +333,13 @@ class SemanticMapperNode(Node):
 
             for i, box in enumerate(boxes):
                 cls_id = int(box.cls[0])
-                cls_name = results[0].names[cls_id]
+                raw_cls_name = results[0].names[cls_id]
                 conf = float(box.conf[0])
 
-                # Optional: focus on indoor relevant classes
+                # Remap class if needed (e.g. bench -> dining table)
+                cls_name = self.class_remap.get(raw_cls_name, raw_cls_name)
+
+                # Focus on target indoor classes
                 if cls_name not in self.target_classes and len(self.target_classes) > 0:
                     continue
 
@@ -351,14 +359,26 @@ class SemanticMapperNode(Node):
                 if base_point is None:
                     continue
 
+                # Physical geometry sanity checks:
+                # A bed in a house is at least 0.9m wide and <= 1.2m tall.
+                # A wall or mailbox falsely detected as bed will have height > 1.8m or width < 0.7m.
+                if cls_name == 'bed':
+                    if extent[0] < 0.8 or extent[1] < 0.8 or extent[2] > 1.6:
+                        continue
+
                 # 5. Data Association & Spatial Gating
                 self._associate_or_add_object(
                     cls_name, base_point, conf, extent, current_timestamp
                 )
 
-                # Annotate image
-                xmin, ymin, xmax, ymax = [int(v) for v in box.xyxy[0]]
+                # Annotate image: Draw transparent segmentation mask overlay
                 import cv2
+                mask_overlay = np.zeros_like(annotated_frame, dtype=np.uint8)
+                mask_overlay[mask] = (0, 215, 255)  # Bright amber mask for clear visualization
+                annotated_frame = cv2.addWeighted(annotated_frame, 0.85, mask_overlay, 0.35, 0)
+
+                # Bounding box and label
+                xmin, ymin, xmax, ymax = [int(v) for v in box.xyxy[0]]
                 cv2.rectangle(annotated_frame, (xmin, ymin), (xmax, ymax), (0, 255, 0), 2)
                 label_txt = f"{cls_name} ({conf:.2f}) [{base_point[0]:.1f},{base_point[1]:.1f}]"
                 cv2.putText(
@@ -659,11 +679,18 @@ class SemanticMapperNode(Node):
             "drift_log": self.drift_events[-20:]  # Recent drift records
         }
 
-        try:
-            with open(self.map_output_path, 'w') as f:
-                json.dump(summary, f, indent=2)
-        except Exception as e:
-            self.get_logger().warn(f"Failed to export map to {self.map_output_path}: {e}")
+        target_paths = {
+            self.map_output_path,
+            os.path.expanduser("~/Robotic-PS/tasks/semantic_mapping/semantic_map.json"),
+            os.path.expanduser("~/semantic_map.json"),
+        }
+        for path in target_paths:
+            try:
+                os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+                with open(path, 'w') as f:
+                    json.dump(summary, f, indent=2)
+            except Exception as e:
+                pass
 
     def print_semantic_map(self):
         """Print the human-readable summary required by the booklet: 'After a run, one command prints your stored map'."""
